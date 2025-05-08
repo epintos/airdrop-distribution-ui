@@ -1,10 +1,11 @@
 "use client";
 
 import InputField from "@/components/ui/InputField";
-import { chainsToTSender, erc20Abi } from "@/constants";
-import { readContract } from "@wagmi/core";
-import { useState } from "react";
-import { useAccount, useChainId, useConfig } from "wagmi";
+import { chainsToTSender, erc20Abi, tsenderAbi } from "@/constants";
+import { calculateTotal } from "@/utils";
+import { readContract, waitForTransactionReceipt } from "@wagmi/core";
+import { useMemo, useState } from "react";
+import { useAccount, useChainId, useConfig, useWriteContract } from "wagmi";
 
 export default function AirdropForm() {
   const [tokenAddress, setTokenAddress] = useState("");
@@ -13,6 +14,9 @@ export default function AirdropForm() {
   const chainId = useChainId();
   const config = useConfig();
   const account = useAccount();
+  const total: number = useMemo(() => calculateTotal(amounts), [amounts]);
+  const { data: hash, isPending, writeContractAsync } = useWriteContract();
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const getApprovedAmount = async (
     tSenderAddress: string | null
@@ -38,7 +42,37 @@ export default function AirdropForm() {
 
     const tSenderAddress = chainsToTSender[chainId]["tsender"];
     const approvedAmount = await getApprovedAmount(tSenderAddress);
-    console.log("approvedAmount", approvedAmount);
+
+    if (approvedAmount < total) {
+      const approvalHash = await writeContractAsync({
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "approve",
+        args: [tSenderAddress as `0x${string}`, BigInt(total)],
+      });
+      const approvalReceipt = await waitForTransactionReceipt(config, {
+        hash: approvalHash,
+      });
+      
+    } else {
+    }
+    await writeContractAsync({
+      abi: tsenderAbi,
+      address: tSenderAddress as `0x${string}`,
+      functionName: "airdropERC20",
+      args: [
+        tokenAddress,
+        recipients
+          .split(/[,\n]+/)
+          .map((addr) => addr.trim())
+          .filter((addr) => addr !== ""),
+        amounts
+          .split(/[,\n]+/)
+          .map((amt) => amt.trim())
+          .filter((amt) => amt !== ""),
+        BigInt(total),
+      ],
+    });
   };
 
   return (
