@@ -202,7 +202,7 @@ export default function AirdropForm() {
 
         <div className="space-y-6">
           <div className="flex justify-between items-center">
-            <span className="text-gray-700 text-l">Token Name:</span>
+            <span className="text-gray-700 text-l">Token Name: </span>
             <span className="text-l font-medium">{(tokenData?.[1]?.result || "-") as string}</span>
           </div>
 
