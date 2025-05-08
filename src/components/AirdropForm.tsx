@@ -4,7 +4,7 @@ import InputField from "@/components/ui/InputField";
 import { chainsToTSender, erc20Abi, tsenderAbi } from "@/constants";
 import { calculateTotal } from "@/utils";
 import { readContract, waitForTransactionReceipt } from "@wagmi/core";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CgSpinner } from "react-icons/cg";
 import {
   useAccount,
@@ -58,6 +58,39 @@ export default function AirdropForm() {
     ],
   });
   const [insufficientBalance, setInsufficientBalance] = useState(false);
+  const isFormIncomplete = !tokenAddress || !recipients || !amounts;
+
+  useEffect(() => {
+    const savedTokenAddress = localStorage.getItem("tokenAddress");
+    const savedRecipients = localStorage.getItem("recipients");
+    const savedAmounts = localStorage.getItem("amounts");
+
+    if (savedTokenAddress) setTokenAddress(savedTokenAddress);
+    if (savedRecipients) setRecipients(savedRecipients);
+    if (savedAmounts) setAmounts(savedAmounts);
+  }, []);
+  
+  useEffect(() => {
+    localStorage.setItem("tokenAddress", tokenAddress);
+  }, [tokenAddress]);
+
+  useEffect(() => {
+    localStorage.setItem("recipients", recipients);
+  }, [recipients]);
+
+  useEffect(() => {
+    localStorage.setItem("amounts", amounts);
+  }, [amounts]);
+
+  useEffect(() => {
+    const userBalance = tokenData?.[2].result as number;
+    if (tokenAddress && total > 0 && userBalance !== undefined) {
+        setInsufficientBalance(userBalance < total);
+    } else {
+      setInsufficientBalance(false);
+    }
+}, [tokenAddress, total, tokenData]);
+
 
   const getApprovedAmount = async (
     tSenderAddress: string | null
@@ -180,7 +213,7 @@ export default function AirdropForm() {
       />
       <button
         onClick={handleSubmit}
-        disabled={isPending || isConfirming}
+        disabled={isPending || isConfirming || isError || insufficientBalance || isFormIncomplete}
         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-400 disabled:cursor-not-allowed w-full flex items-center justify-center"
       >
         {isPending || error || isError || isConfirming
