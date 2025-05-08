@@ -16,7 +16,7 @@ export default function AirdropForm() {
   const account = useAccount();
   const total: number = useMemo(() => calculateTotal(amounts), [amounts]);
   const { data: hash, isPending, writeContractAsync } = useWriteContract();
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
   const getApprovedAmount = async (
     tSenderAddress: string | null
@@ -36,43 +36,43 @@ export default function AirdropForm() {
   };
 
   const handleSubmit = async () => {
-    console.log("tokenAddress", tokenAddress);
-    console.log("recipients", recipients);
-    console.log("amounts", amounts);
+    try {
+      const tSenderAddress = chainsToTSender[chainId]["tsender"];
+      const approvedAmount = await getApprovedAmount(tSenderAddress);
 
-    const tSenderAddress = chainsToTSender[chainId]["tsender"];
-    const approvedAmount = await getApprovedAmount(tSenderAddress);
-
-    if (approvedAmount < total) {
-      const approvalHash = await writeContractAsync({
-        abi: erc20Abi,
-        address: tokenAddress as `0x${string}`,
-        functionName: "approve",
-        args: [tSenderAddress as `0x${string}`, BigInt(total)],
+      if (approvedAmount < total) {
+        setIsApproving(true);
+        const approvalHash = await writeContractAsync({
+          abi: erc20Abi,
+          address: tokenAddress as `0x${string}`,
+          functionName: "approve",
+          args: [tSenderAddress as `0x${string}`, BigInt(total)],
+        });
+        const approvalReceipt = await waitForTransactionReceipt(config, {
+          hash: approvalHash,
+        });
+        setIsApproving(false);
+      }
+      await writeContractAsync({
+        abi: tsenderAbi,
+        address: tSenderAddress as `0x${string}`,
+        functionName: "airdropERC20",
+        args: [
+          tokenAddress,
+          recipients
+            .split(/[,\n]+/)
+            .map((addr) => addr.trim())
+            .filter((addr) => addr !== ""),
+          amounts
+            .split(/[,\n]+/)
+            .map((amt) => amt.trim())
+            .filter((amt) => amt !== ""),
+          BigInt(total),
+        ],
       });
-      const approvalReceipt = await waitForTransactionReceipt(config, {
-        hash: approvalHash,
-      });
-      
-    } else {
+    } catch (error) {
+      console.error("Transaction failed:", error);
     }
-    await writeContractAsync({
-      abi: tsenderAbi,
-      address: tSenderAddress as `0x${string}`,
-      functionName: "airdropERC20",
-      args: [
-        tokenAddress,
-        recipients
-          .split(/[,\n]+/)
-          .map((addr) => addr.trim())
-          .filter((addr) => addr !== ""),
-        amounts
-          .split(/[,\n]+/)
-          .map((amt) => amt.trim())
-          .filter((amt) => amt !== ""),
-        BigInt(total),
-      ],
-    });
   };
 
   return (
@@ -99,9 +99,17 @@ export default function AirdropForm() {
       />
       <button
         onClick={handleSubmit}
-        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        disabled={isPending || isApproving}
+        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-400 disabled:cursor-not-allowed w-full flex items-center justify-center"
       >
-        Send Tokens
+        {isPending || isApproving ? (
+          <>
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent mr-2" />
+            {isApproving ? "Approving..." : "Sending..."}
+          </>
+        ) : (
+          "Send Tokens"
+        )}
       </button>
     </div>
   );
