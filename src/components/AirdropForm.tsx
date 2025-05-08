@@ -2,7 +2,7 @@
 
 import InputField from "@/components/ui/InputField";
 import { chainsToTSender, erc20Abi, tsenderAbi } from "@/constants";
-import { calculateTotal } from "@/utils";
+import { calculateTotal, formatTokenAmount } from "@/utils";
 import { readContract, waitForTransactionReceipt } from "@wagmi/core";
 import { useEffect, useMemo, useState } from "react";
 import { CgSpinner } from "react-icons/cg";
@@ -196,6 +196,27 @@ export default function AirdropForm() {
         onChange={(e) => setAmounts(e.target.value)}
         large={true}
       />
+
+      <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-sm border border-gray-200">
+        <h2 className="text-xl font-bold mb-6">Transaction Details</h2>
+
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <span className="text-gray-700 text-l">Token Name:</span>
+            <span className="text-l font-medium">{(tokenData?.[1]?.result || "-") as string}</span>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="text-gray-700 text-l">Amount (wei):</span>
+            <span className="text-l font-mono">{total}</span>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="text-gray-700 text-l">Amount (tokens):</span>
+            <span className="text-l font-mono">{ formatTokenAmount(total, tokenData?.[0]?.result as number)}</span>
+          </div>
+        </div>
+      </div>
       <button
         onClick={handleSubmit}
         disabled={
