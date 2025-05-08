@@ -69,7 +69,7 @@ export default function AirdropForm() {
     if (savedRecipients) setRecipients(savedRecipients);
     if (savedAmounts) setAmounts(savedAmounts);
   }, []);
-  
+
   useEffect(() => {
     localStorage.setItem("tokenAddress", tokenAddress);
   }, [tokenAddress]);
@@ -85,12 +85,11 @@ export default function AirdropForm() {
   useEffect(() => {
     const userBalance = tokenData?.[2].result as number;
     if (tokenAddress && total > 0 && userBalance !== undefined) {
-        setInsufficientBalance(userBalance < total);
+      setInsufficientBalance(userBalance < total);
     } else {
       setInsufficientBalance(false);
     }
-}, [tokenAddress, total, tokenData]);
-
+  }, [tokenAddress, total, tokenData]);
 
   const getApprovedAmount = async (
     tSenderAddress: string | null
@@ -105,20 +104,6 @@ export default function AirdropForm() {
       address: tokenAddress as `0x${string}`,
       functionName: "allowance",
       args: [account.address, tSenderAddress as `0x${string}`],
-    });
-    return response as number;
-  };
-
-  const getBalance = async (tSenderAddress: string | null): Promise<number> => {
-    if (!tSenderAddress) {
-      alert("No address found, please use a supported chain");
-      return 0;
-    }
-    const response = await readContract(config, {
-      abi: erc20Abi,
-      address: tokenAddress as `0x${string}`,
-      functionName: "balanceOf",
-      args: [account.address],
     });
     return response as number;
   };
@@ -190,7 +175,7 @@ export default function AirdropForm() {
   }
 
   return (
-    <div>
+    <div className="max-w-md mx-auto space-y-4 mt-8 p-6 bg-white rounded-lg shadow-md border border-gray-200">
       <InputField
         label="Token Address"
         placeholder="0x"
@@ -213,7 +198,13 @@ export default function AirdropForm() {
       />
       <button
         onClick={handleSubmit}
-        disabled={isPending || isConfirming || isError || insufficientBalance || isFormIncomplete}
+        disabled={
+          isPending ||
+          isConfirming ||
+          isError ||
+          insufficientBalance ||
+          isFormIncomplete
+        }
         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-400 disabled:cursor-not-allowed w-full flex items-center justify-center"
       >
         {isPending || error || isError || isConfirming
