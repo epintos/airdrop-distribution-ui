@@ -5,7 +5,15 @@ import { chainsToTSender, erc20Abi, tsenderAbi } from "@/constants";
 import { calculateTotal } from "@/utils";
 import { readContract, waitForTransactionReceipt } from "@wagmi/core";
 import { useMemo, useState } from "react";
-import { useAccount, useChainId, useConfig, useWriteContract } from "wagmi";
+import { CgSpinner } from "react-icons/cg";
+import {
+  useAccount,
+  useChainId,
+  useConfig,
+  useReadContracts,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
 
 export default function AirdropForm() {
   const [tokenAddress, setTokenAddress] = useState("");
@@ -15,8 +23,41 @@ export default function AirdropForm() {
   const config = useConfig();
   const account = useAccount();
   const total: number = useMemo(() => calculateTotal(amounts), [amounts]);
-  const { data: hash, isPending, writeContractAsync } = useWriteContract();
-  const [isApproving, setIsApproving] = useState(false);
+  const {
+    data: hash,
+    isPending,
+    error,
+    writeContractAsync,
+  } = useWriteContract();
+  const {
+    isLoading: isConfirming,
+    isSuccess: isConfirmed,
+    isError,
+  } = useWaitForTransactionReceipt({
+    confirmations: 1,
+    hash,
+  });
+  const { data: tokenData } = useReadContracts({
+    contracts: [
+      {
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "decimals",
+      },
+      {
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "name",
+      },
+      {
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "balanceOf",
+        args: [account.address],
+      },
+    ],
+  });
+  const [insufficientBalance, setInsufficientBalance] = useState(false);
 
   const getApprovedAmount = async (
     tSenderAddress: string | null
@@ -35,13 +76,26 @@ export default function AirdropForm() {
     return response as number;
   };
 
+  const getBalance = async (tSenderAddress: string | null): Promise<number> => {
+    if (!tSenderAddress) {
+      alert("No address found, please use a supported chain");
+      return 0;
+    }
+    const response = await readContract(config, {
+      abi: erc20Abi,
+      address: tokenAddress as `0x${string}`,
+      functionName: "balanceOf",
+      args: [account.address],
+    });
+    return response as number;
+  };
+
   const handleSubmit = async () => {
     try {
       const tSenderAddress = chainsToTSender[chainId]["tsender"];
       const approvedAmount = await getApprovedAmount(tSenderAddress);
 
       if (approvedAmount < total) {
-        setIsApproving(true);
         const approvalHash = await writeContractAsync({
           abi: erc20Abi,
           address: tokenAddress as `0x${string}`,
@@ -51,7 +105,6 @@ export default function AirdropForm() {
         const approvalReceipt = await waitForTransactionReceipt(config, {
           hash: approvalHash,
         });
-        setIsApproving(false);
       }
       await writeContractAsync({
         abi: tsenderAbi,
@@ -74,6 +127,34 @@ export default function AirdropForm() {
       console.error("Transaction failed:", error);
     }
   };
+
+  function getButtonContent() {
+    if (isPending)
+      return (
+        <div className="flex items-center justify-center gap-2 w-full">
+          <CgSpinner className="animate-spin" size={20} />
+          <span>Confirming in wallet...</span>
+        </div>
+      );
+    if (isConfirming)
+      return (
+        <div className="flex items-center justify-center gap-2 w-full">
+          <CgSpinner className="animate-spin" size={20} />
+          <span>Waiting for transaction to be included...</span>
+        </div>
+      );
+    if (error || isError) {
+      console.log(error);
+      return (
+        <div className="flex items-center justify-center gap-2 w-full">
+          <span>Error, see console.</span>
+        </div>
+      );
+    }
+    if (isConfirmed) {
+      return "Transaction confirmed.";
+    }
+  }
 
   return (
     <div>
@@ -99,17 +180,14 @@ export default function AirdropForm() {
       />
       <button
         onClick={handleSubmit}
-        disabled={isPending || isApproving}
+        disabled={isPending || isConfirming}
         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-400 disabled:cursor-not-allowed w-full flex items-center justify-center"
       >
-        {isPending || isApproving ? (
-          <>
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent mr-2" />
-            {isApproving ? "Approving..." : "Sending..."}
-          </>
-        ) : (
-          "Send Tokens"
-        )}
+        {isPending || error || isError || isConfirming
+          ? getButtonContent()
+          : insufficientBalance && tokenAddress
+          ? "Insufficient token balance"
+          : "Send Tokens"}
       </button>
     </div>
   );
